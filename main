@@ -1,0 +1,81 @@
+import pygame as pg
+import sprites
+import sys
+
+
+class Game:
+    def __init__(self):
+        pg.init()
+        self.screen = pg.display.set_mode((1920, 1020), vsync=1)
+        self.clock = pg.time.Clock()
+        self.myfont = pg.image.load('images/dungeon_background.png').convert()
+
+
+        # Игровые объекты
+        self.mainCharacter = sprites.Player()
+        self.bullets = pg.sprite.Group()
+        self.all_sprites = pg.sprite.Group()
+
+        # Состояние игры (теперь это свойства класса, а не локальные переменные)
+        self.is_running = True
+        self.is_shooting = False
+        self.last_shot_time = 0
+        self.shoot_delay = 110  # мс
+    def handle_events(self):
+        """Обработка всех событий ввода"""
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                self.is_running = False
+
+            elif event.type == pg.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    self.is_shooting = True
+
+            elif event.type == pg.MOUSEBUTTONUP:
+                if event.button == 1:
+                    self.is_shooting = False
+
+    def update(self):
+        """Обновление игровой логики"""
+        # Получаем текущее время каждый кадр
+        current_time = pg.time.get_ticks()
+
+        # Логика стрельбы
+        if self.is_shooting:
+            if current_time - self.last_shot_time > self.shoot_delay:
+                self.bullets.add(sprites.Bullet(self.mainCharacter.rect.midtop))
+                self.last_shot_time = current_time
+
+
+        # Обновляем спрайты
+        self.mainCharacter.update()
+        self.bullets.update()
+
+    def draw(self):
+        """Отрисовка всего на экране"""
+        # Фон
+        self.screen.blit(self.myfont, (0, 0))
+        # Персонаж
+        self.screen.blit(self.mainCharacter.image, self.mainCharacter.rect)
+        # Пули
+        self.bullets.draw(self.screen)
+
+        # Обновление экрана
+        pg.display.update()
+
+    def run(self):
+        """Главный игровой цикл"""
+        while self.is_running:
+            self.handle_events()
+            self.update()
+            self.draw()
+            self.clock.tick(120)
+
+        pg.quit()
+        sys.exit()
+
+
+# Запуск игры
+if __name__ == "__main__":
+    game = Game()
+    game.run()
