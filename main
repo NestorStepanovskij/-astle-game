@@ -2,80 +2,82 @@ import pygame as pg
 import sprites
 import sys
 
-
 class Game:
     def __init__(self):
         pg.init()
         self.screen = pg.display.set_mode((1920, 1020), vsync=1)
         self.clock = pg.time.Clock()
-        self.myfont = pg.image.load('images/dungeon_background.png').convert()
+        self.background = pg.image.load('images/dungeon_background.png').convert()
 
+        self.hurt = pg.image.load('images/hurt.png').convert_alpha()
+        self.hurt = pg.transform.scale(self.hurt, (42, 42))
+        self.hp = 3
 
-        # Игровые объекты
-        self.mainCharacter = sprites.Player()
+        self.mainCharacter = sprites.MainCharacter()
+        self.peasants = pg.sprite.Group()
         self.bullets = pg.sprite.Group()
-        self.all_sprites = pg.sprite.Group()
 
-        # Состояние игры (теперь это свойства класса, а не локальные переменные)
-        self.is_running = True
-        self.is_shooting = False
-        self.last_shot_time = 0
-        self.shoot_delay = 110  # мс
+        self.isRunning = True
+        self.isShooting = False
+        self.shootDelay = 110
+        self.last_shot_time = -self.shootDelay
+
+        self.spawn_delay = 800
+        self.last_spawn_time = 0
+
     def handle_events(self):
-        """Обработка всех событий ввода"""
         for event in pg.event.get():
             if event.type == pg.QUIT:
-                self.is_running = False
-
-            elif event.type == pg.MOUSEBUTTONDOWN:
-                if event.button == 1:
-                    self.is_shooting = True
-
-            elif event.type == pg.MOUSEBUTTONUP:
-                if event.button == 1:
-                    self.is_shooting = False
+                self.isRunning = False
+            elif event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                self.isShooting = True
+            elif event.type == pg.MOUSEBUTTONUP and event.button == 1:
+                self.isShooting = False
 
     def update(self):
-        """Обновление игровой логики"""
-        # Получаем текущее время каждый кадр
         current_time = pg.time.get_ticks()
 
-        # Логика стрельбы
-        if self.is_shooting:
-            if current_time - self.last_shot_time > self.shoot_delay:
-                self.bullets.add(sprites.Bullet(self.mainCharacter.rect.midtop))
-                self.last_shot_time = current_time
+        if self.isShooting and current_time - self.last_shot_time > self.shootDelay:
+            self.bullets.add(sprites.Bullet(self.mainCharacter.rect.midright))
+            self.last_shot_time = current_time
 
+        if current_time - self.last_spawn_time > self.spawn_delay:
+            self.peasants.add(sprites.Peasant())
+            self.last_spawn_time = current_time
 
-        # Обновляем спрайты
+        # пули бьют крестьян
+        pg.sprite.groupcollide(self.bullets, self.peasants, True, True)
+
+        # крестьяне бьют игрока
+        hits = pg.sprite.spritecollide(self.mainCharacter, self.peasants, True)
+        for hit in hits:
+            self.hp -= 1
+            if self.hp <= 0:
+                self.isRunning = False
+
         self.mainCharacter.update()
         self.bullets.update()
+        self.peasants.update()
 
     def draw(self):
-        """Отрисовка всего на экране"""
-        # Фон
-        self.screen.blit(self.myfont, (0, 0))
-        # Персонаж
+        self.screen.blit(self.background, (0, 0))
         self.screen.blit(self.mainCharacter.image, self.mainCharacter.rect)
-        # Пули
         self.bullets.draw(self.screen)
-
-        # Обновление экрана
+        self.peasants.draw(self.screen)
+        for i in range(self.hp):
+            self.screen.blit(self.hurt, (10 + i * 30, 10))
         pg.display.update()
 
     def run(self):
-        """Главный игровой цикл"""
-        while self.is_running:
+        while self.isRunning:
             self.handle_events()
             self.update()
             self.draw()
             self.clock.tick(120)
-
         pg.quit()
         sys.exit()
 
 
-# Запуск игры
 if __name__ == "__main__":
     game = Game()
     game.run()
