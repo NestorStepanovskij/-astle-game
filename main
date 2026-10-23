@@ -2,6 +2,7 @@ import pygame as pg
 import sprites
 import sys
 
+
 class Game:
     def __init__(self):
         pg.init()
@@ -11,7 +12,15 @@ class Game:
 
         self.hurt = pg.image.load('images/hurt.png').convert_alpha()
         self.hurt = pg.transform.scale(self.hurt, (42, 42))
-        self.hp = 3
+        self.maxHpCount = 3
+        self.hp = self.maxHpCount
+
+        self.armor = pg.image.load('images/godSup.png').convert_alpha()
+        self.armor = pg.transform.scale(self.armor, (42, 42))
+        self.maxArmorCount = 3
+        self.armorCount = self.maxArmorCount
+        self.armorDelay = 15000
+        self.lastHeatTime = -self.armorDelay
 
         self.mainCharacter = sprites.MainCharacter()
         self.peasants = pg.sprite.Group()
@@ -25,6 +34,12 @@ class Game:
         self.spawn_delay = 800
         self.last_spawn_time = 0
 
+        # Прицел, обновляется каждый кадр — им же воспользуется будущее оружие
+        self.aim_x, self.aim_y, self.aim_angle = 1.0, 0.0, 0.0
+        gun_img = pg.image.load("images/gun.png")
+        self.gun = sprites.Gun(self.mainCharacter, gun_img, offset=35, follow=0.4)
+        self.weapons = pg.sprite.Group(self.gun)
+
     def handle_events(self):
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -34,27 +49,48 @@ class Game:
             elif event.type == pg.MOUSEBUTTONUP and event.button == 1:
                 self.isShooting = False
 
+    def update_aim(self):
+        """Пересчитывает прицел один раз за кадр — и для стрельбы, и для оружия."""
+        self.aim_x, self.aim_y, self.aim_angle = sprites.get_aim(
+            self.mainCharacter.rect.center
+        )
+
     def update(self):
         current_time = pg.time.get_ticks()
 
+        self.update_aim()
+
         if self.isShooting and current_time - self.last_shot_time > self.shootDelay:
-            self.bullets.add(sprites.Bullet(self.mainCharacter.rect.midright))
+            # Спавним пулю чуть впереди игрока, чтобы она не появлялась внутри него
+            origin = self.mainCharacter.rect.center
+            spawn_pos = (
+                origin[0] + self.aim_x * 40,
+                origin[1] + self.aim_y * 40,
+            )
+            self.bullets.add(sprites.Bullet(spawn_pos, (self.aim_x, self.aim_y)))
             self.last_shot_time = current_time
 
+        if self.armorCount<self.maxArmorCount and current_time - self.lastHeatTime > self.armorDelay:
+            self.armorCount += 1
+            self.lastHeatTime = current_time
+
+
+        # спавн врагов с некоторой переодичностью
         if current_time - self.last_spawn_time > self.spawn_delay:
             self.peasants.add(sprites.Peasant())
             self.last_spawn_time = current_time
 
-        # пули бьют крестьян
         pg.sprite.groupcollide(self.bullets, self.peasants, True, True)
-
-        # крестьяне бьют игрока
+        # обработка попаданий по игроку и убавление хп и защиты
         hits = pg.sprite.spritecollide(self.mainCharacter, self.peasants, True)
         for hit in hits:
-            self.hp -= 1
+            if self.armorCount > 0:
+                self.armorCount -= 1
+            else:
+                self.hp -= 1
             if self.hp <= 0:
                 self.isRunning = False
-
+        self.gun.update(self.aim_x, self.aim_y, self.aim_angle)
         self.mainCharacter.update()
         self.bullets.update()
         self.peasants.update()
@@ -64,8 +100,13 @@ class Game:
         self.screen.blit(self.mainCharacter.image, self.mainCharacter.rect)
         self.bullets.draw(self.screen)
         self.peasants.draw(self.screen)
+        self.weapons.draw(self.screen)
+        # рисуем хп и броню
         for i in range(self.hp):
-            self.screen.blit(self.hurt, (10 + i * 30, 10))
+            self.screen.blit(self.hurt, (10 + i * 40, 10))
+        for i in range(self.armorCount):
+            self.screen.blit(self.armor, (10 + i * 40, 50))
+
         pg.display.update()
 
     def run(self):
