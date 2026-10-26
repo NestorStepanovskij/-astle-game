@@ -40,6 +40,10 @@ class Game:
         self.gun = sprites.Gun(self.mainCharacter, gun_img, offset=35, follow=0.4)
         self.weapons = pg.sprite.Group(self.gun)
 
+        self.enemy_bullets = pg.sprite.Group()
+        self.damage_delay = 1000
+        self.last_damage_time = -self.damage_delay
+
     def handle_events(self):
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -74,6 +78,13 @@ class Game:
             self.armorCount += 1
             self.lastHeatTime = current_time
 
+        self.enemy_bullets.update()
+
+        for peasant in self.peasants:
+            bullet = peasant.shoot(self.mainCharacter.rect.center, current_time)
+            if bullet is not None:
+                self.enemy_bullets.add(bullet)
+
 
         # спавн врагов с некоторой переодичностью
         if current_time - self.last_spawn_time > self.spawn_delay:
@@ -82,12 +93,25 @@ class Game:
 
         pg.sprite.groupcollide(self.bullets, self.peasants, True, True)
         # обработка попаданий по игроку и убавление хп и защиты
-        hits = pg.sprite.spritecollide(self.mainCharacter, self.peasants, True)
-        for hit in hits:
+        contact_hits = pg.sprite.spritecollide(
+    self.mainCharacter, self.peasants, True
+)
+        bullet_hits = pg.sprite.spritecollide(
+            self.mainCharacter, self.enemy_bullets, True
+        )
+
+        if (
+            (contact_hits or bullet_hits)
+            and current_time - self.last_damage_time >= self.damage_delay
+        ):
+            self.last_damage_time = current_time
+            self.lastHeatTime = current_time
+
             if self.armorCount > 0:
                 self.armorCount -= 1
             else:
                 self.hp -= 1
+
             if self.hp <= 0:
                 self.isRunning = False
         self.gun.update(self.aim_x, self.aim_y, self.aim_angle)
@@ -106,6 +130,7 @@ class Game:
             self.screen.blit(self.hurt, (10 + i * 40, 10))
         for i in range(self.armorCount):
             self.screen.blit(self.armor, (10 + i * 40, 50))
+        self.enemy_bullets.draw(self.screen)
 
         pg.display.update()
 

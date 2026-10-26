@@ -83,10 +83,38 @@ class MainCharacter(pg.sprite.Sprite):
         self.rect.clamp_ip(pg.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
 
 
+class EnemyBullet(pg.sprite.Sprite):
+    def __init__(self, origin, target):
+        super().__init__()
+        self.image = pg.Surface((12, 12), pg.SRCALPHA)
+        pg.draw.circle(self.image, "orange", (6, 6), 6)
+
+        self.pos = Vector2(origin)
+        self.rect = self.image.get_rect(center=origin)
+
+        direction = Vector2(target) - self.pos
+        if direction.length_squared() == 0:
+            direction = Vector2(1, 0)
+
+        # Random error makes their shots less accurate.
+        self.velocity = direction.normalize().rotate(
+            random.uniform(-20, 20)
+        ) * 2
+
+    def update(self):
+        self.pos += self.velocity
+        self.rect.center = (round(self.pos.x), round(self.pos.y))
+
+        if not self.rect.colliderect(
+            pg.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+        ):
+            self.kill()
+
+
 class Peasant(pg.sprite.Sprite):
     def __init__(self):
         super().__init__()
-        self.image = pg.image.load("images/CowBoy.png").convert_alpha()
+        self.image = pg.image.load("images/heal_potion.png").convert_alpha()
         size = random.randint(70, 150)
         self.image = pg.transform.scale(self.image, (size, size))
 
@@ -95,10 +123,22 @@ class Peasant(pg.sprite.Sprite):
 
         self.speedx = random.choice([-1, 1]) * random.randint(1, 2)
         self.speedy = random.randint(1, 2)
+        self.next_shot_time = pg.time.get_ticks() + random.randint(2000, 4000)
 
     def update(self):
         self.rect.x += self.speedx
         self.rect.y += self.speedy
+    def shoot(self, target, current_time):
+        if current_time < self.next_shot_time:
+            return None
+
+        if not self.rect.colliderect(
+            pg.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+        ):
+            return None
+
+        self.next_shot_time = current_time + random.randint(3000, 5000)
+        return EnemyBullet(self.rect.center, target)
 
 
 class Gun(pg.sprite.Sprite):
